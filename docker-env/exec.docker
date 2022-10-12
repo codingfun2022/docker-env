@@ -1,0 +1,16 @@
+#!/bin/bash
+
+set -e
+
+SOURCE=${BASH_SOURCE[0]}
+while [ -h ${SOURCE} ]
+do
+    DIR=$(cd -P $(dirname ${SOURCE}) && pwd)
+    SOURCE=$(readlink ${SOURCE})
+    [[ ${SOURCE} != /* ]] && SOURCE=${DIR}/${SOURCE}
+done
+DIR=$(cd -P $(dirname ${SOURCE}) && pwd)
+
+name=$(basename ${DIR})-$(id -un)
+docker top ${name} >/dev/null 2>&1 || $(realpath $(dirname ${BASH_SOURCE[0]}))/run.docker
+docker exec --workdir ${PWD} -it ${name} /bin/bash --login

@@ -1,0 +1,26 @@
+[alias]
+	st = status
+	df = diff
+	dff = diff --cached
+	ci = commit
+	co = checkout
+	cp = cherry-pick
+	br = branch
+[log]
+	decorate = short
+[color]
+	ui = auto
+[core]
+	editor = vim
+	hideDotFiles = true
+	autocrlf = false
+	safecrlf = false
+	filemode = true
+[init]
+	defaultBranch = main
+[push]
+	default = simple
+[pull]
+	rebase = true
+[gc]
+	autoDetach = false

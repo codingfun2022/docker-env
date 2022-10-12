@@ -1,0 +1,147 @@
+#!/usr/bin/env python3
+# -*- encoding: utf-8 -*-
+# -*- mode: python -*-
+
+from __future__ import print_function
+from __future__ import absolute_import
+from __future__ import division
+
+class TmuxExecutor(object):
+    def __init__(self):
+        self._session_name = self._get_session_name()
+        self._tmux_executable = self._get_tmux_executable()
+        self._tmux_arguments = self._get_tmux_arguments()
+        self._existing_sessions = self._get_existing_sessions()
+        self._bash_profile = self._get_bash_profile()
+        self._bash_arguments = self._get_bash_arguments()
+
+    def _get_session_name(self):
+        import os
+        dir_name = os.getcwd()
+        dir_name = os.path.basename(dir_name)
+        names = dir_name.split('-')
+        if names and names[0] in ('ml', 'test', 'hello'):
+            prefix = names.pop(0)
+            names.append(prefix)
+        return '-'.join(names)
+
+    def _get_tmux_executable(self):
+        import os
+        import sys
+        import subprocess
+        args = 'which', '-a', 'tmux'
+        try:
+            output = subprocess.check_output(args, stderr=subprocess.PIPE)
+            if not isinstance(output, str):
+                output = output.decode('utf-8')
+        except subprocess.CalledProcessError:
+            message = "error: tmux command not found"
+            print(message, file=sys.stderr)
+            raise SystemExit(1)
+        myself = os.path.realpath(sys.argv[0])
+        myself = os.path.dirname(myself)
+        lines = output.strip().splitlines()
+        for line in reversed(lines):
+            candicate = os.path.realpath(line)
+            candicate = os.path.dirname(candicate)
+            if candicate != myself:
+                return line
+        message = "error: tmux command not found"
+        print(message, file=sys.stderr)
+        raise SystemExit(1)
+
+    def _get_tmux_arguments(self):
+        return self._tmux_executable,
+
+    def _get_bash_profile(self):
+        import os
+        items = '.env/.profile', '.env/.bash_profile', '.env/.bashrc'
+        items += '.profile', '.bash_profile', '.bashrc'
+        items += os.path.expanduser('~/.profile'),
+        items += os.path.expanduser('~/.bash_profile'),
+        items += os.path.expanduser('~/.bashrc'),
+        for item in items:
+            if os.path.isfile(item):
+                return item
+        return None
+
+    def _get_bash_arguments(self):
+        args = '/bin/bash',
+        if self._bash_profile is not None:
+            args += '--rcfile', self._bash_profile
+        args += '-i',
+        command = ' '.join(args)
+        args = command,
+        return args
+
+    def _get_existing_sessions(self):
+        import subprocess
+        args = self._get_tmux_arguments()
+        args += 'ls',
+        try:
+            output = subprocess.check_output(args, stderr=subprocess.PIPE)
+            if not isinstance(output, str):
+                output = output.decode('utf-8')
+        except subprocess.CalledProcessError:
+            output = ''
+        sessions = []
+        for line in output.splitlines():
+            index = line.find(':')
+            if index == -1:
+                continue
+            session = line[:index]
+            sessions.append(session)
+        return frozenset(sessions)
+
+    def _start_session(self):
+        import subprocess
+        if self._session_name not in self._existing_sessions:
+            args = self._tmux_arguments
+            args += 'new-session', '-d', '-s', self._session_name, '-n', 'home'
+            args += self._bash_arguments
+            subprocess.check_call(args)
+            names = 'build', 'build', 'run', 'run', 'edit', 'edit', 'edit', 'edit', 'edit'
+            for i, name in enumerate(names):
+                args = self._tmux_arguments
+                args += 'new-window', '-t', '%s:%d' % (self._session_name, i + 1), '-n', name
+                args += self._bash_arguments
+                subprocess.check_call(args)
+            args = self._tmux_arguments
+            args += 'select-window', '-t', '%s:%d' % (self._session_name, 0)
+            subprocess.check_call(args)
+
+    def _attach_session(self):
+        import os
+        args = self._tmux_arguments
+        args += 'attach-session', '-t', self._session_name
+        os.execv(self._tmux_executable, args)
+
+    def _forward_execution(self):
+        import os
+        import sys
+        args = self._tmux_arguments
+        args += tuple(sys.argv[1:])
+        os.execv(self._tmux_executable, args)
+
+    def _configure_xterm(self):
+        import os
+        os.environ['TERM'] = 'xterm-256color'
+
+    def _is_start_here(self):
+        import sys
+        return len(sys.argv) == 2 and sys.argv[1] == '.'
+
+    def run(self):
+        self._configure_xterm()
+        if self._is_start_here():
+            self._start_session()
+            self._attach_session()
+        else:
+            self._forward_execution()
+
+def main():
+    executor = TmuxExecutor()
+    executor.run()
+
+if __name__ == '__main__':
+    main()
